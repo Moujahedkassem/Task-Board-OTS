@@ -1,0 +1,45 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: taskboard
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/DockerFile
+    command: npx ts-node src/index.ts
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/taskboard
+    depends_on:
+      - db
+    volumes:
+      - ./apps/backend:/app
+      - ./prisma:/app/prisma   # ✅ Add this line to mount the Prisma schema
+    working_dir: /app
+    ports:
+      - '4000:4000'
+    env_file:
+      - .env
+
+  frontend:
+    build: ./apps/frontend
+    command: npm run dev -- --host
+    ports:
+      - '5173:5173'
+    depends_on:
+      - backend
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:

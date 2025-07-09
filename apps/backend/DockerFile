@@ -1,0 +1,26 @@
+# Use official Node.js LTS image
+FROM node:18
+
+# Set working directory
+WORKDIR /app
+
+# Copy package.json and package-lock.json
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy the rest of the backend code
+COPY . .
+
+# Copy the prisma directory from the project root into the image
+COPY prisma ./prisma
+
+# Install ts-node globally
+RUN npm install -g ts-node
+
+# Expose the backend port
+EXPOSE 4000
+
+# Start the backend (adjust if your entry point is different)
+CMD ["npx", "ts-node", "src/index.ts"]

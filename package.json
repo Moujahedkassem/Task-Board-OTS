@@ -1,0 +1,10 @@
+{
+  "devDependencies": {
+    "prisma": "^6.11.1"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.11.1",
+    "@tanstack/react-query": "^5.81.5",
+    "@trpc/react-query": "^11.4.3"
+  }
+}

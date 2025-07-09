@@ -15,7 +15,6 @@ import TaskDialog from "../components/TaskDialog";
 import type { TaskStatus } from "../types/task";
 import TeamMembers from "../components/TeamMembers";
 import TaskFilters from "../components/TaskFilters";
-import type { TaskFilterValues } from "../components/TaskFilters";
 import { Button } from "../components/ui/button";
 import { Toast } from "../components/ui/toast";
 import ProfileMenu from "../components/ProfileMenu";

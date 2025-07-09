@@ -84,12 +84,14 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const now = new Date().toISOString();
     const optimisticTask: Task = { ...task, id: tempId, createdAt: now, updatedAt: now } as Task;
     setTasks(prev => [optimisticTask, ...prev]);
-    createTask.mutate(task, {
-      onSuccess: (newTask) => {
-        setTasks(prev => prev.map(t => t.id === tempId ? newTask : t));
+    // Convert assigneeId null to undefined for backend
+    const backendTask = { ...task, assigneeId: task.assigneeId ?? undefined };
+    createTask.mutate(backendTask, {
+      onSuccess: (newTask: Task) => {
+        setTasks((prev: Task[]) => prev.map((t: Task) => t.id === tempId ? newTask : t));
       },
       onError: () => {
-        setTasks(prev => prev.filter(t => t.id !== tempId));
+        setTasks((prev: Task[]) => prev.filter((t: Task) => t.id !== tempId));
         setErrorMsg("Failed to create task");
       }
     });
@@ -97,19 +99,27 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Optimistic update
   const editTask = (id: string, updates: Partial<Task>) => {
-    setTasks(prev => {
-      const oldTask = prev.find(t => t.id === id);
+    setTasks((prev: Task[]) => {
+      const oldTask = prev.find((t: Task) => t.id === id);
       if (!oldTask) return prev;
       const updatedTask = { ...oldTask, ...updates };
-      return prev.map(t => t.id === id ? updatedTask : t);
+      return prev.map((t: Task) => t.id === id ? updatedTask : t);
     });
-    const oldTask = tasks.find(t => t.id === id);
-    updateTask.mutate({ id, ...updates }, {
-      onSuccess: (updated) => {
-        setTasks(prev => prev.map(t => t.id === id ? updated : t));
+    const oldTask = tasks.find((t: Task) => t.id === id);
+    // Ensure all required fields are present and assigneeId is string or undefined
+    const backendUpdates = {
+      id,
+      title: updates.title ?? oldTask?.title ?? "",
+      description: updates.description ?? oldTask?.description ?? "",
+      status: updates.status ?? oldTask?.status ?? "TODO",
+      assigneeId: (updates.assigneeId ?? oldTask?.assigneeId) ?? undefined,
+    };
+    updateTask.mutate(backendUpdates, {
+      onSuccess: (updated: Task) => {
+        setTasks((prev: Task[]) => prev.map((t: Task) => t.id === id ? updated : t));
       },
       onError: () => {
-        setTasks(prev => prev.map(t => t.id === id ? (oldTask || t) : t));
+        setTasks((prev: Task[]) => prev.map((t: Task) => t.id === id ? (oldTask || t) : t));
         setErrorMsg("Failed to update task");
       }
     });

@@ -25,7 +25,7 @@ export default function TaskDialog({ open, onClose, onSave, initial }: TaskDialo
   const [title, setTitle] = useState(initial?.title || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [status, setStatus] = useState<TaskStatus>(initial?.status || "TODO");
-  const [assigneeId, setAssigneeId] = useState<string | undefined>(initial?.assigneeId);
+  const [assigneeId, setAssigneeId] = useState<string | undefined>(initial?.assigneeId ?? undefined);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -33,7 +33,7 @@ export default function TaskDialog({ open, onClose, onSave, initial }: TaskDialo
     setTitle(initial?.title || "");
     setDescription(initial?.description || "");
     setStatus(initial?.status || "TODO");
-    setAssigneeId(initial?.assigneeId);
+    setAssigneeId(initial?.assigneeId ?? undefined);
     setError("");
     setLoading(false);
   }, [open, initial]);

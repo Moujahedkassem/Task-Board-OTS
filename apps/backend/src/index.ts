@@ -14,7 +14,7 @@ app.use(express.json());
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
 // JWT middleware: decode token and attach user to req.user
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) {
     const token = auth.slice(7);

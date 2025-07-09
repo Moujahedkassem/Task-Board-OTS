@@ -5,7 +5,7 @@ export interface Task {
   title: string;
   description: string;
   status: TaskStatus;
-  assigneeId?: string;
+  assigneeId?: string | null;
   createdAt: string;
   updatedAt: string;
 } 

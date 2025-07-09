@@ -31,7 +31,9 @@ services:
       - .env
 
   frontend:
-    build: ./apps/frontend
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
     command: npm run dev -- --host
     ports:
       - '5173:5173'

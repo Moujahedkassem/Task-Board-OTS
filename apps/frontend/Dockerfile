@@ -4,14 +4,18 @@ FROM node:20
 # Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
-
-# Install dependencies
+# Copy frontend package files and install dependencies
+COPY apps/frontend/package*.json ./
 RUN npm install
 
 # Copy the rest of the frontend code
-COPY . .
+COPY apps/frontend/. .
+
+# Copy the shared directory from the project root (for types only)
+COPY shared ./shared
+
+# Copy the backend directory for type-only imports (for types only)
+COPY apps/backend ./backend
 
 # Build the frontend
 RUN npm run build

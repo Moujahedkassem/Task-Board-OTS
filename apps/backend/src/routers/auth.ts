@@ -1,6 +1,6 @@
 import { router, publicProcedure } from '../trpc';
 import { z } from 'zod';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import bcrypt from 'bcrypt';
 import nodemailer from 'nodemailer';

@@ -16,6 +16,9 @@ COPY . .
 # Copy the prisma directory from the project root into the image
 COPY prisma ./prisma
 
+# Generate Prisma client for the correct platform
+RUN npx prisma generate
+
 # Install ts-node globally
 RUN npm install -g ts-node
 

@@ -91,16 +91,39 @@ export const authRouter = router({
     }))
     .mutation(async ({ input }) => {
       // Generate a reset code
-      const code = crypto.randomBytes(3).toString('hex');
-      // Save the code to the user in the DB (if user exists)
-      await prisma.user.updateMany({
+      const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+      
+      console.log('=== PASSWORD RESET DEBUG ===');
+      console.log('Email:', input.email);
+      console.log('Generated code:', code);
+      console.log('SMTP Config:', {
+        host: process.env.SMTP_HOST || 'smtp.example.com',
+        port: Number(process.env.SMTP_PORT) || 587,
+        user: process.env.SMTP_USER || 'user@example.com',
+        from: process.env.SMTP_FROM || 'no-reply@example.com'
+      });
+      
+      // Check if user exists first
+      const existingUser = await prisma.user.findUnique({
+        where: { email: input.email },
+      });
+      
+      if (!existingUser) {
+        console.log('User does not exist:', input.email);
+        return { success: true, message: 'If an account exists for this email, a reset code has been sent.' };
+      }
+      
+      console.log('User exists, updating reset token...');
+      
+      // Save the code to the user in the DB
+      const updateResult = await prisma.user.update({
         where: { email: input.email },
         data: {
           resetToken: code,
         },
       });
-      // Log for dev
-      console.log(`Password reset code for ${input.email}: ${code}`);
+      console.log('Database update result:', updateResult);
+      
       // Create transporter INSIDE the mutation
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST || 'smtp.example.com',
@@ -111,18 +134,47 @@ export const authRouter = router({
           pass: process.env.SMTP_PASS || 'password',
         },
       });
+      
       // Send code in email
       try {
-        await transporter.sendMail({
+        console.log('Attempting to send email...');
+        const emailResult = await transporter.sendMail({
           from: process.env.SMTP_FROM || 'no-reply@example.com',
           to: input.email,
           subject: 'Password Reset Code',
           text: `Your password reset code is: ${code}`,
           html: `<p>Your password reset code is: <b>${code}</b></p>`,
         });
-      } catch (err) {
-        console.error('Failed to send reset email:', err);
+        console.log('Email sent successfully:', emailResult);
+        return { success: true, code, message: 'Reset code sent successfully!' };
+      } catch (err: any) {
+        console.error('=== EMAIL SENDING FAILED ===');
+        console.error('Error details:', err);
+        console.error('SMTP Error code:', err.code);
+        console.error('SMTP Error command:', err.command);
+        console.error('SMTP Error response:', err.response);
         // Don't reveal to the user if the email failed for privacy
+        return { success: true, message: 'If an account exists for this email, a reset code has been sent.' };
+      }
+      
+      console.log('=== END PASSWORD RESET DEBUG ===');
+    }),
+  verifyResetCode: publicProcedure
+    .input(z.object({
+      code: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      // Find user by code (case-insensitive)
+      const user = await prisma.user.findFirst({
+        where: {
+          resetToken: {
+            equals: input.code,
+            mode: 'insensitive'
+          },
+        },
+      });
+      if (!user) {
+        throw new Error('Invalid or expired code');
       }
       return { success: true };
     }),
@@ -132,10 +184,13 @@ export const authRouter = router({
       newPassword: z.string().min(6),
     }))
     .mutation(async ({ input }) => {
-      // Find user by code
+      // Find user by code (case-insensitive)
       const user = await prisma.user.findFirst({
         where: {
-          resetToken: input.code,
+          resetToken: {
+            equals: input.code,
+            mode: 'insensitive'
+          },
         },
       });
       if (!user) {
@@ -150,5 +205,55 @@ export const authRouter = router({
         },
       });
       return { success: true };
+    }),
+  testEmailConfig: publicProcedure
+    .mutation(async () => {
+      console.log('=== EMAIL CONFIG TEST ===');
+      console.log('SMTP_HOST:', process.env.SMTP_HOST);
+      console.log('SMTP_PORT:', process.env.SMTP_PORT);
+      console.log('SMTP_USER:', process.env.SMTP_USER);
+      console.log('SMTP_FROM:', process.env.SMTP_FROM);
+      console.log('SMTP_PASS:', process.env.SMTP_PASS ? '***SET***' : '***NOT SET***');
+      
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.example.com',
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER || 'user@example.com',
+          pass: process.env.SMTP_PASS || 'password',
+        },
+      });
+      
+      try {
+        await transporter.verify();
+        console.log('SMTP connection verified successfully');
+        return { success: true, message: 'SMTP configuration is valid' };
+      } catch (err: any) {
+        console.error('SMTP verification failed:', err);
+        return { success: false, error: err.message };
+      }
+    }),
+  checkUser: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+    }))
+    .mutation(async ({ input }) => {
+      const user = await prisma.user.findUnique({
+        where: { email: input.email },
+        select: { id: true, email: true, name: true, resetToken: true }
+      });
+      
+      console.log('=== USER CHECK ===');
+      console.log('Email:', input.email);
+      console.log('User exists:', !!user);
+      if (user) {
+        console.log('User details:', user);
+      }
+      
+      return { 
+        exists: !!user, 
+        user: user ? { id: user.id, email: user.email, name: user.name } : null 
+      };
     }),
 }); 

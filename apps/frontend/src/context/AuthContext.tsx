@@ -10,10 +10,15 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
+  resetEmail: string | null;
   getToken: () => string | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  requestPasswordReset: (email: string) => Promise<boolean>;
+  verifyResetCode: (code: string) => Promise<boolean>;
+  resetPassword: (code: string, newPassword: string) => Promise<boolean>;
+  clearResetState: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("auth_user");
@@ -37,6 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loginMutation = trpc.auth.login.useMutation();
+  const requestResetMutation = trpc.auth.requestPasswordReset.useMutation();
+  const verifyResetCodeMutation = trpc.auth.verifyResetCode.useMutation();
+  const resetPasswordMutation = trpc.auth.resetPassword.useMutation();
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
@@ -98,9 +107,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const requestPasswordReset = async (email: string): Promise<boolean> => {
+    try {
+      await requestResetMutation.mutateAsync({ email });
+      // Store email in global state
+      setResetEmail(email);
+      return true;
+    } catch (err: any) {
+      console.error('Password reset request error:', err);
+      throw new Error('Failed to send reset code');
+    }
+  };
+
+  const verifyResetCode = async (code: string): Promise<boolean> => {
+    try {
+      const result = await verifyResetCodeMutation.mutateAsync({ code });
+      if (result?.success) {
+        return true;
+      }
+      throw new Error('Invalid reset code');
+    } catch (err: any) {
+      console.error('Password reset code verification error:', err);
+      throw err;
+    }
+  };
+
+  const resetPassword = async (code: string, newPassword: string): Promise<boolean> => {
+    try {
+      await resetPasswordMutation.mutateAsync({ code, newPassword });
+      clearResetState();
+      return true;
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      throw err;
+    }
+  };
+
+  const clearResetState = () => {
+    setResetEmail(null);
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
+    clearResetState();
     localStorage.removeItem("auth_user");
     localStorage.removeItem("auth_token");
   };
@@ -110,7 +160,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, getToken, login, register, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token, 
+      resetEmail,
+      getToken, 
+      login, 
+      register, 
+      logout,
+      requestPasswordReset,
+      verifyResetCode,
+      resetPassword,
+      clearResetState
+    }}>
       {children}
     </AuthContext.Provider>
   );

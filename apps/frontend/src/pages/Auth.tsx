@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { trpc } from '../trpc';
 
 const Auth: React.FC = () => {
   const [tab, setTab] = useState<'login' | 'register'>('login');
@@ -9,11 +8,18 @@ const Auth: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login, register } = useAuth();
+  const { login, register, requestPasswordReset, verifyResetCode, resetPassword, clearResetState } = useAuth();
+  
+  // Reset password states
   const [showResetForm, setShowResetForm] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
+  const [showCodeInput, setShowCodeInput] = useState(false);
+  const [showNewPasswordForm, setShowNewPasswordForm] = useState(false);
+  const [resetEmailInput, setResetEmailInput] = useState('');
+  const [resetCodeInput, setResetCodeInput] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [resetMessage, setResetMessage] = useState('');
-  const resetMutation = trpc.auth.requestPasswordReset.useMutation();
+  const [resetError, setResetError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -43,49 +49,208 @@ const Auth: React.FC = () => {
     }
   };
 
-  // Password reset form submit
-  const handleResetSubmit = async (e: React.FormEvent) => {
+  // Step 1: Request password reset
+  const handleResetEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setResetError('');
     setResetMessage('');
     try {
-      await resetMutation.mutateAsync({ email: resetEmail });
-      setResetMessage('If an account exists for this email, a reset link has been sent.');
+      await requestPasswordReset(resetEmailInput);
+      setResetMessage('Reset code sent! Check your email and enter the 6-character code below.');
+      setShowCodeInput(true);
     } catch (err: any) {
-      setResetMessage('Failed to send reset email.');
+      setResetError(err.message || 'Failed to send reset code.');
     }
   };
 
-  if (showResetForm) {
+  // Step 2: Verify reset code
+  const handleCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    if (!resetCodeInput || resetCodeInput.length !== 6) {
+      setResetError('Please enter a 6-character code.');
+      return;
+    }
+    try {
+      await verifyResetCode(resetCodeInput);
+      setShowNewPasswordForm(true);
+      setResetMessage('');
+    } catch (err: any) {
+      setResetError(err.message || 'Invalid reset code.');
+    }
+  };
+
+  // Step 3: Set new password
+  const handleNewPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    if (!newPassword || newPassword.length < 6) {
+      setResetError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResetError('Passwords do not match.');
+      return;
+    }
+    try {
+      await resetPassword(resetCodeInput, newPassword);
+      setResetMessage('Password reset successful! You can now log in.');
+      setTimeout(() => {
+        clearResetState();
+        setShowResetForm(false);
+        setShowCodeInput(false);
+        setShowNewPasswordForm(false);
+        setResetEmailInput('');
+        setResetCodeInput('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setResetMessage('');
+        setResetError('');
+      }, 2000);
+    } catch (err: any) {
+      setResetError(err.message || 'Failed to reset password.');
+    }
+  };
+
+  const handleBackToLogin = () => {
+    clearResetState();
+    setShowResetForm(false);
+    setShowCodeInput(false);
+    setShowNewPasswordForm(false);
+    setResetEmailInput('');
+    setResetCodeInput('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setResetMessage('');
+    setResetError('');
+  };
+
+  // Show new password form
+  if (showNewPasswordForm) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
         <div className="bg-white p-8 rounded shadow w-full max-w-sm">
-          <h2 className="text-xl font-bold mb-4">Reset Password</h2>
-          <form onSubmit={handleResetSubmit} className="flex flex-col gap-4">
+          <h2 className="text-xl font-bold mb-4">Set New Password</h2>
+          <form onSubmit={handleNewPasswordSubmit} className="flex flex-col gap-4">
             <input
-              type="email"
-              name="resetEmail"
-              placeholder="Enter your email"
-              value={resetEmail}
-              onChange={e => setResetEmail(e.target.value)}
+              type="password"
+              placeholder="New password"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
               className="border rounded px-3 py-2"
-              autoComplete="email"
+              autoComplete="new-password"
               required
-              disabled={resetMutation.isPending}
             />
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              className="border rounded px-3 py-2"
+              autoComplete="new-password"
+              required
+            />
+            {resetError && (
+              <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded px-3 py-2">{resetError}</div>
+            )}
+            {resetMessage && (
+              <div className="text-green-700 text-sm bg-green-50 border border-green-200 rounded px-3 py-2">{resetMessage}</div>
+            )}
+            <button
+              type="submit"
+              className="bg-blue-500 text-white py-2 rounded font-semibold hover:bg-blue-600 transition disabled:opacity-50"
+            >
+              Reset Password
+            </button>
+            <button
+              type="button"
+              className="text-blue-500 underline text-sm mt-2"
+              onClick={handleBackToLogin}
+            >
+              Back to Login
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Show code input form
+  if (showCodeInput) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+        <div className="bg-white p-8 rounded shadow w-full max-w-sm">
+          <h2 className="text-xl font-bold mb-4">Enter Reset Code</h2>
+          <p className="text-sm text-gray-600 mb-4">Enter the 6-character code sent to your email</p>
+          
+          <form onSubmit={handleCodeSubmit} className="flex flex-col gap-4">
+            <input
+              type="text"
+              placeholder="Enter 6-character code"
+              value={resetCodeInput}
+              onChange={e => setResetCodeInput(e.target.value.toUpperCase())}
+              className="border rounded px-3 py-2 text-center text-lg font-mono tracking-widest"
+              maxLength={6}
+              autoComplete="off"
+              required
+            />
+            {resetError && (
+              <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded px-3 py-2">{resetError}</div>
+            )}
             {resetMessage && (
               <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 rounded px-3 py-2">{resetMessage}</div>
             )}
             <button
               type="submit"
               className="bg-blue-500 text-white py-2 rounded font-semibold hover:bg-blue-600 transition disabled:opacity-50"
-              disabled={resetMutation.isPending}
             >
-              {resetMutation.isPending ? 'Sending...' : 'Send Reset Link'}
+              Verify Code
             </button>
             <button
               type="button"
               className="text-blue-500 underline text-sm mt-2"
-              onClick={() => { setShowResetForm(false); setResetMessage(''); }}
+              onClick={handleBackToLogin}
+            >
+              Back to Login
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Show reset email form
+  if (showResetForm) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+        <div className="bg-white p-8 rounded shadow w-full max-w-sm">
+          <h2 className="text-xl font-bold mb-4">Reset Password</h2>
+          <form onSubmit={handleResetEmailSubmit} className="flex flex-col gap-4">
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={resetEmailInput}
+              onChange={e => setResetEmailInput(e.target.value)}
+              className="border rounded px-3 py-2"
+              autoComplete="email"
+              required
+            />
+            {resetError && (
+              <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded px-3 py-2">{resetError}</div>
+            )}
+            {resetMessage && (
+              <div className="text-blue-700 text-sm bg-blue-50 border border-blue-200 rounded px-3 py-2">{resetMessage}</div>
+            )}
+            <button
+              type="submit"
+              className="bg-blue-500 text-white py-2 rounded font-semibold hover:bg-blue-600 transition disabled:opacity-50"
+            >
+              Send Reset Code
+            </button>
+            <button
+              type="button"
+              className="text-blue-500 underline text-sm mt-2"
+              onClick={handleBackToLogin}
             >
               Back to Login
             </button>
